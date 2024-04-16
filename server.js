@@ -116,7 +116,7 @@ app.post("/convert", (req, res) => {
   console.log(data.type);
   console.log("PDF to svg test start");
 
-  if (data.type == "choice") {
+  if (data.type == "choice" || data.type == "ranger") {
     convertFile();
   } else {
     res.status(400).send("Invalid request body");
