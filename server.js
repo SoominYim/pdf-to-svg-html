@@ -45,17 +45,25 @@ app.post("/upload", (req, res) => {
   }
 
   fs.readdir(inDir, (err, files) => {
+    if (err) {
+      console.error("Error reading directory:", err);
+      return;
+    }
     // 파일 존재시 기존 파일 삭제
-    if (files.length > 0) {
+    if (files.length > 1) {
       files.forEach((file) => {
         const filePath = path.join(inDir, file);
-        fs.unlink(filePath, (err) => {
-          if (err) {
-            console.error("Error deleting file:", filePath, err);
-          } else {
-            console.log("Deleted file:", filePath);
-          }
-        });
+
+        // 파일 확장자가 '.pdf' 인 경우에만 삭제
+        if (path.extname(file).toLowerCase() === ".pdf") {
+          fs.unlink(filePath, (err) => {
+            if (err) {
+              console.error("Error deleting file:", filePath, err);
+            } else {
+              console.log("Deleted file:", filePath);
+            }
+          });
+        }
       });
     }
 
@@ -86,16 +94,18 @@ app.post("/convert", (req, res) => {
       );
       const command = `"${filePath}" "${inputPdfPath}" "${outputSvgPath}" ${data.page[i]}`;
 
-      // 변환 작업의 프로미스 생성
-      exec(command, (error, stdout, stderr) => {
-        if (error) {
-          console.error(`Error converting page ${data.page[i]}: ${error.message}`);
-          reject(error);
-        } else {
-          console.log(`Converted page ${data.page[i]}`);
-          resolve();
-        }
+      const promise = new Promise((resolve, reject) => {
+        exec(command, (error, stdout, stderr) => {
+          if (error) {
+            console.error(`Error converting page ${data.page[i]}: ${error.message}`);
+            reject(error);
+          } else {
+            console.log(`Converted page ${data.page[i]}`);
+            resolve();
+          }
+        });
       });
+      promises.push(promise);
     }
 
     try {
@@ -109,8 +119,7 @@ app.post("/convert", (req, res) => {
   }
 
   exec("chcp 65001");
-  console.log(data.type);
-  console.log("PDF to svg test start");
+  console.log("PDF to svg convert start");
 
   if (data.type == "choice" || data.type == "ranger") {
     convertFile();
@@ -132,8 +141,8 @@ app.get("/getSVGFiles", (req, res) => {
       return fs.readFileSync(filePath, "utf-8");
     });
 
-    if (files.length > 0) {
-      files.forEach((file) => {
+    if (svgFiles.length > 0) {
+      svgFiles.forEach((file) => {
         const filePath = path.join(outDir, file);
         fs.unlink(filePath, (err) => {
           if (err) {
@@ -143,8 +152,6 @@ app.get("/getSVGFiles", (req, res) => {
           }
         });
       });
-    } else {
-      res.json(svgFileContents);
     }
     res.json(svgFileContents);
   });
