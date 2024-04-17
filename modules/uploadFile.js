@@ -8,7 +8,7 @@ const storage = multer.diskStorage({
   destination: function (_, _, cb) {
     cb(null, inDir);
   },
-  filename: function (_, _, cb) {
+  filename: function (_, file, cb) {
     cb(null, file.originalname); // 원본 파일 이름으로 설정
   },
 });
