@@ -17,13 +17,17 @@
    ```bash
    git clone https://github.com/SoominYim/pdf-to-svg-html.git
    ```
-2. Install dependencies using npm or yarn:
+2. Cd dir
+   ```bash
+   cd pdf-to-svg-html
+   ```
+3. Install dependencies using npm or yarn:
    ```bash
    npm install
    # 또는  
    yarn install
    ```
-3. Start the server using nodemon:
+4. Start the server using nodemon:
    ```bash
    npx nodemon app.js
    # 또는
