@@ -2,6 +2,9 @@
 
 이 프로젝트는 PDF 파일을 SVG 형식으로 변환하여 HTML로 제공합니다.
 
+## 💎 canvas로 변환 시엔  [PDF TO canvas HTML](https://github.com/SoominYim/pdf-to-html)를 이용해주세요.
+
+
 ## Prerequisites
 
 시작하기 전에 시스템에 다음 사항이 설치되어 있는지 확인하세요:
