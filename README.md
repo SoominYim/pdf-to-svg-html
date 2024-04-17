@@ -25,7 +25,7 @@
    ```
 3. Start the server using nodemon:
    ```bash
-   npx nodemon server.js
+   npx nodemon app.js
    # 또는
-   yarn nodemon server.js
+   yarn nodemon app.js
    ```
