@@ -87,19 +87,15 @@ app.post("/convert", (req, res) => {
       const command = `"${filePath}" "${inputPdfPath}" "${outputSvgPath}" ${data.page[i]}`;
 
       // 변환 작업의 프로미스 생성
-      const promise = new Promise((resolve, reject) => {
-        exec(command, (error, stdout, stderr) => {
-          if (error) {
-            console.error(`Error converting page ${data.page[i]}: ${error.message}`);
-            reject(error);
-          } else {
-            console.log(`Converted page ${data.page[i]}`);
-            resolve();
-          }
-        });
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Error converting page ${data.page[i]}: ${error.message}`);
+          reject(error);
+        } else {
+          console.log(`Converted page ${data.page[i]}`);
+          resolve();
+        }
       });
-
-      promises.push(promise); // 프로미스를 배열에 추가
     }
 
     try {
