@@ -20,7 +20,3 @@ pnpm-debug.log*
 *.njsproj
 *.sln
 *.sw?
-
-# 빈폴더 추가
-touch .keep
-touch .gitkeep
