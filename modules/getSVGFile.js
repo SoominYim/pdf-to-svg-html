@@ -28,6 +28,7 @@ const _g = (_, res) => {
         });
       });
     }
+    console.log("클라이언트에 svg 파일 전달 완료");
     res.json(svgFileContents);
   });
 };
