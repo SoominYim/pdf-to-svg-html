@@ -11,7 +11,7 @@
 
 - Node.js (LTS 권장)
 - Git
-- windows11 os batch 파일 수정 권한 필요
+- windows11 os batch 파일 수정 권한 필요(수정 중)
 
 ## Getting Started
 
