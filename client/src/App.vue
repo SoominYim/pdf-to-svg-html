@@ -44,9 +44,10 @@
             @input="numInput" />
         </li>
         <li v-if="isFile" class="scale_wrap">
-          <button @click="decrementScale(0.01)">-</button>
-          <span for="magnification">{{ Math.round(scale * 100) }}%</span>
-          <button @click="incrementScale(0.01)">+</button>
+          <button @click="decrementScale(0.1)">-</button>
+          <input type="text" id="scale" :value="Math.round(scale * 100)" @keydown.enter="updateScale"
+            @focusout="resetScale" @input="numInput" />%
+          <button @click="incrementScale(0.1)">+</button>
         </li>
         <li v-if="isFile && selectionType == 'choice'" class="choice_wrap">
           <div class="select_wrap">
@@ -117,7 +118,7 @@ const scale = ref(1);
 
 const page = ref(1);
 const fileName = ref("");
-const isFile = ref(false);
+const isFile = ref(true);
 const selectedPage = ref([]);
 const selectionType = ref("choice");
 const isConvert = ref(false);
@@ -127,6 +128,10 @@ let pageHeight = 0;
 
 const setScale = (newScale) => {
   scale.value = Math.max(0.5, Math.min(4, newScale));
+};
+
+const resetScale = (e) => {
+  e.target.value = Math.round(scale.value * 100);
 };
 
 const incrementScale = (count) => {
@@ -394,6 +399,9 @@ async function exportChoiceHTML() {
 
 // 범위 선택 START
 
+function updateScale(e) {
+  setScale(e.target.value / 100);
+}
 function updateStartPages(e) {
   if (e.target.value > pages.value || e.target.value < 1 || e.target.value > lastPage.value) {
     e.target.value = startPage.value;
@@ -656,6 +664,23 @@ export default {
       }
 
       .scale_wrap {
+
+        input {
+          width: 50px;
+
+          background-color: #55c592;
+          border: 1px solid #fff;
+          border-radius: 2px;
+          margin: 0 4px;
+          color: #fff;
+          outline: none;
+          text-align: center;
+
+          &:focus {
+            border-color: #424242;
+          }
+        }
+
         button {
           border: 1px solid #fff;
           border-radius: 3px;
