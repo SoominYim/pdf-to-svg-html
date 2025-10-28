@@ -4,17 +4,17 @@ module.exports = defineConfig({
   outputDir: "../dist",
   devServer: {
     proxy: {
-      "/upload": { 
-        target: "http://localhost:3000", 
-        changeOrigin: true 
+      "/upload": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
       },
-      "/convert": { 
-        target: "http://localhost:3000", 
-        changeOrigin: true 
+      "/convert": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
       },
-      "/getSVGFiles": { 
-        target: "http://localhost:3000", 
-        changeOrigin: true 
+      "/getSVGFiles": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
       },
     },
   },
