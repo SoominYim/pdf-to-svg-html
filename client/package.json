@@ -12,8 +12,9 @@
     "convertapi-js": "~1.1",
     "core-js": "^3.8.3",
     "jszip": "^3.10.1",
-    "sass": "^1.70.0",
     "pdfjs-dist": "^4.0.379",
+    "pinia": "^3.0.3",
+    "sass": "^1.70.0",
     "sass-loader": "^14.1.1",
     "vue": "^3.2.13"
   },
@@ -30,7 +31,8 @@
   "eslintConfig": {
     "root": true,
     "env": {
-      "node": true
+      "node": true,
+      "vue/setup-compiler-macros": true
     },
     "extends": [
       "plugin:vue/vue3-essential",
@@ -40,7 +42,9 @@
       "parser": "@babel/eslint-parser",
       "requireConfigFile": false
     },
-    "rules": {}
+    "rules": {
+      "vue/multi-word-component-names": "off"
+    }
   },
   "browserslist": [
     "> 1%",
