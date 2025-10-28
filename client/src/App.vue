@@ -1,9 +1,7 @@
 <template>
-  <div
-    class="convertLoading"
+  <div class="convertLoading"
     style="background: rgba(0, 0, 0, 0.3); width: 100vw; height: 100vh; position: absolute; z-index: 9999"
-    v-if="isConvert || isUpload"
-  >
+    v-if="isConvert || isUpload">
     <div class="loading-overlay">
       <div class="loader"></div>
     </div>
@@ -31,42 +29,24 @@
         </li>
         <li v-if="isFile && selectionType == 'choice'" class="page_wrap">
           <button @click="page = page > 1 ? page - 1 : page">&lt;</button>
-          <input
-            type="text"
-            :value="page"
-            @keydown.enter="changePage"
-            @focusout="resetPage"
-            @input="numInput"
-            style="width: 50px; text-align: right"
-          />
+          <input type="text" :value="page" @keydown.enter="changePage" @focusout="resetPage" @input="numInput"
+            style="width: 50px; text-align: right" />
           /
           {{ pages }}
           <button @click="page = page < pages ? page + 1 : page">&gt;</button>
         </li>
         <li v-if="isFile && selectionType == 'range'" class="rangePage_wrap">
           <span style="margin-right: 5px">total : {{ pages }}</span>
-          <input
-            type="text"
-            id="startPage"
-            :value="startPage"
-            @keydown.enter="updateStartPages"
-            @focusout="resetStartPage"
-            @input="numInput"
-          />
+          <input type="text" id="startPage" :value="startPage" @keydown.enter="updateStartPages"
+            @focusout="resetStartPage" @input="numInput" />
           /
-          <input
-            type="text"
-            id="lastPage"
-            :value="lastPage"
-            @keydown.enter="updateLastPages"
-            @focusout="resetLastPage"
-            @input="numInput"
-          />
+          <input type="text" id="lastPage" :value="lastPage" @keydown.enter="updateLastPages" @focusout="resetLastPage"
+            @input="numInput" />
         </li>
         <li v-if="isFile" class="scale_wrap">
-          <button @click="scale = scale > 0.5 ? scale - 0.1 : scale">-</button>
+          <button @click="decrementScale(0.01)">-</button>
           <span for="magnification">{{ Math.round(scale * 100) }}%</span>
-          <button @click="scale = scale < 4 ? scale + 0.1 : scale">+</button>
+          <button @click="incrementScale(0.01)">+</button>
         </li>
         <li v-if="isFile && selectionType == 'choice'" class="choice_wrap">
           <div class="select_wrap">
@@ -97,27 +77,23 @@
         </li>
       </ul>
     </div>
-    <div
-      v-if="selectionType == 'range'"
-      class="content"
-      ref="content"
-      :style="{
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'flex-start',
-      }"
-    >
+    <div v-if="selectionType == 'range'" class="content" ref="content" :style="{
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'flex-start',
+    }">
       <div class="pdf_wrap" v-for="page in filteredPages" :key="page">
         <VuePDF @loaded="onLoaded" ref="vuePDFRef" :scale="scale" :pdf="pdf" :page="page" :text-layer="text_layer">
           <div class="loading-overlay">
-            <div class="loader"></div></div
-        ></VuePDF>
+            <div class="loader"></div>
+          </div>
+        </VuePDF>
       </div>
     </div>
     <div v-if="selectionType == 'choice'" class="content" ref="content" :style="{}">
       <div class="pdf_wrap">
-        <VuePDF @loaded="onLoaded" ref="vuePDFRef" :scale="scale" :pdf="pdf" :page="page" :text-layer="text_layer"
-          ><div class="loading-overlay">
+        <VuePDF @loaded="onLoaded" ref="vuePDFRef" :scale="scale" :pdf="pdf" :page="page" :text-layer="text_layer">
+          <div class="loading-overlay">
             <div class="loader"></div>
           </div>
         </VuePDF>
@@ -137,7 +113,8 @@ const { pdf, pages } = usePDF(file);
 
 const text_layer = ref(true);
 
-const scale = ref(1.4);
+const scale = ref(1);
+
 const page = ref(1);
 const fileName = ref("");
 const isFile = ref(false);
@@ -147,6 +124,17 @@ const isConvert = ref(false);
 const isUpload = ref(false);
 let pageWidth = 0;
 let pageHeight = 0;
+
+const setScale = (newScale) => {
+  scale.value = Math.max(0.5, Math.min(4, newScale));
+};
+
+const incrementScale = (count) => {
+  setScale(scale.value + count);
+};
+const decrementScale = (count) => {
+  setScale(scale.value - count);
+};
 
 // common START
 function changeFile(event) {
@@ -214,13 +202,9 @@ document.addEventListener(
     if (isCtrl) {
       e.preventDefault();
       if (e.deltaY > 0) {
-        if (scale.value > 0.5) {
-          scale.value -= 0.1;
-        }
+        decrementScale(0.1);
       } else if (e.deltaY < 0) {
-        if (scale.value < 4) {
-          scale.value += 0.1;
-        }
+        incrementScale(0.1);
       }
     }
   },
@@ -231,14 +215,10 @@ document.addEventListener("keydown", function (e) {
   if (e.ctrlKey) {
     if (e.key === "-") {
       e.preventDefault();
-      if (scale.value > 1) {
-        scale.value -= 0.1;
-      }
+      decrementScale(0.1);
     } else if (e.key === "=" || e.key === "+") {
       e.preventDefault();
-      if (scale.value < 4) {
-        scale.value += 0.1;
-      }
+      incrementScale(0.1);
     }
   }
 });
@@ -563,15 +543,14 @@ export default {
 
 @font-face {
   font-family: "Cafe24Supermagic-Bold-v1.0";
-  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2307-2@1.0/Cafe24Supermagic-Bold-v1.0.woff2")
-    format("woff2");
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2307-2@1.0/Cafe24Supermagic-Bold-v1.0.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
 }
+
 @font-face {
   font-family: "GangwonEduHyeonokT_OTFMediumA";
-  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2201-2@1.0/GangwonEduHyeonokT_OTFMediumA.woff")
-    format("woff");
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2201-2@1.0/GangwonEduHyeonokT_OTFMediumA.woff") format("woff");
   font-weight: normal;
   font-style: normal;
 }
@@ -586,23 +565,29 @@ export default {
 #app {
   background-color: #ccc;
 }
+
 .pdfContainer {
   button {
     padding: 0px 7px;
   }
+
   .header {
     background-color: #41b883;
     display: flex;
     justify-content: center;
-    & > div {
+
+    &>div {
       display: flex;
       justify-content: center;
+
       input[type="radio"] {
         display: none;
-        &:checked + label {
+
+        &:checked+label {
           background-color: #35976b;
         }
       }
+
       label {
         display: inline-block;
         font-size: 1.5rem;
@@ -614,19 +599,23 @@ export default {
         color: #fff;
       }
     }
-    & > ul {
+
+    &>ul {
       font-size: 1.5rem;
       white-space: nowrap;
       text-wrap: nowrap;
       word-break: keep-all;
       color: #fff;
+
       li {
         padding: 12px;
       }
+
       .file_wrap {
         &:hover {
           background-color: #35976b;
         }
+
         input[type="file"] {
           position: absolute;
           width: 0;
@@ -635,19 +624,23 @@ export default {
           overflow: hidden;
           border: 0;
         }
+
         label {
           cursor: pointer;
         }
       }
+
       .page_wrap {
         button {
           border: 1px solid #fff;
           border-radius: 3px;
           margin: 0 5px;
+
           &:hover {
             background-color: #35976b;
           }
         }
+
         input {
           background-color: #55c592;
           border: 1px solid #fff;
@@ -655,37 +648,45 @@ export default {
           color: #fff;
           padding-right: 4px;
           outline: none;
+
           &:focus {
             border-color: #424242;
           }
         }
       }
+
       .scale_wrap {
         button {
           border: 1px solid #fff;
           border-radius: 3px;
           margin: 0 5px;
+
           &:hover {
             background-color: #35976b;
           }
         }
+
         span {
           display: inline-block;
           width: 40px;
         }
       }
+
       .choice_wrap {
         position: relative;
         width: 190px;
-        & > button {
+
+        &>button {
           border: 1px solid #fff;
           border-radius: 3px;
           margin: 0 5px;
           margin-left: 120px;
+
           &:hover {
             background-color: #35976b;
           }
         }
+
         .select_wrap {
           .select {
             position: absolute;
@@ -695,10 +696,12 @@ export default {
             font-size: 1.2rem;
             border: 1px solid #ccc;
             padding: 3px 10px;
-            border-radius: 5px; /* 드롭다운 모서리 둥글게 */
+            border-radius: 5px;
+            /* 드롭다운 모서리 둥글게 */
             background-color: #35976b;
             text-align: left;
             cursor: pointer;
+
             &:after {
               position: absolute;
               content: "";
@@ -709,11 +712,13 @@ export default {
               border: 5px solid transparent;
               border-color: #fff transparent transparent transparent;
             }
+
             &.open {
               border: 1px solid #ad8225;
               border-radius: 6px 6px 0px 0px;
             }
           }
+
           .items {
             overflow: hidden;
             position: absolute;
@@ -728,6 +733,7 @@ export default {
             background-color: #35976b;
             cursor: pointer;
             z-index: 3;
+
             .item {
               display: flex;
               justify-content: space-around;
@@ -735,9 +741,11 @@ export default {
               &:not(:last-child) {
                 margin-bottom: 5px;
               }
+
               &:hover {
                 background-color: #2d7e59;
               }
+
               div {
                 width: 50%;
                 text-align: center;
@@ -745,11 +753,13 @@ export default {
                 justify-content: center;
                 align-items: center;
               }
+
               button {
                 border: 1px solid #fff;
                 border-radius: 3px;
                 margin-top: 4px;
                 margin-bottom: 4px;
+
                 &:hover {
                   background-color: #2d7e59;
                 }
@@ -758,12 +768,15 @@ export default {
           }
         }
       }
+
       .export_wrap {
         cursor: pointer;
+
         &:hover {
           background-color: #35976b;
         }
       }
+
       .rangePage_wrap {
         input {
           width: 50px;
@@ -775,6 +788,7 @@ export default {
           padding-right: 8px;
           outline: none;
           text-align: right;
+
           &:focus {
             border-color: #424242;
           }
@@ -782,18 +796,21 @@ export default {
       }
     }
   }
+
   .content {
     height: 95vh;
     margin: 0px auto;
     display: flex;
     justify-content: center;
     overflow: auto;
+
     .pdf_wrap {
       height: fit-content;
       margin: 10px;
     }
   }
 }
+
 .loading-container {
   position: relative;
 }
@@ -810,18 +827,22 @@ export default {
 }
 
 .loader {
-  border: 16px solid #f3f3f3; /* 회색 테두리 */
-  border-top: 16px solid #41b883; /* 파란색 테두리 */
+  border: 16px solid #f3f3f3;
+  /* 회색 테두리 */
+  border-top: 16px solid #41b883;
+  /* 파란색 테두리 */
   border-radius: 50%;
   width: 120px;
   height: 120px;
-  animation: spin 2s linear infinite; /* 회전 애니메이션 */
+  animation: spin 2s linear infinite;
+  /* 회전 애니메이션 */
 }
 
 @keyframes spin {
   0% {
     transform: rotate(0deg);
   }
+
   100% {
     transform: rotate(360deg);
   }
