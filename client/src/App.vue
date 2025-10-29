@@ -157,7 +157,6 @@ const setScale = (newScale) => {
   // 디바운싱: 0.8초 후에 실제 렌더링
   clearTimeout(scaleDebounceTimer);
   scaleDebounceTimer = setTimeout(() => {
-    console.log(`⚙️ 스케일 적용: ${scale.value} → ${newValue}`);
     scale.value = newValue;
 
     // 범위 선택 모드에서 리렌더링 시작
@@ -171,7 +170,6 @@ const setScale = (newScale) => {
       // 진행 상태 리셋
       loadedCount.value = 0;
       isLoadingMore.value = true;
-      console.log(`   리렌더링 시작: ${renderedPages.value.length}페이지`);
     }
   }, 800);
 }
@@ -448,7 +446,6 @@ const filteredPages = computed(() => {
 
 // 청크 렌더링 초기화 함수
 function startChunkRendering() {
-  console.log(`📦 청크 렌더링 시작: 총 ${filteredPages.value.length}페이지, 5페이지씩`);
 
   // 초기화
   renderedPages.value = [];
@@ -471,7 +468,6 @@ watch(filteredPages, (newPages) => {
 // 파일 업로드 시에도 렌더링 시작
 watch(isFile, (fileLoaded) => {
   if (fileLoaded && selectionType.value === 'range' && filteredPages.value.length > 0) {
-    console.log(`📦 파일 업로드 완료`);
     startChunkRendering();
   }
 });
@@ -479,7 +475,6 @@ watch(isFile, (fileLoaded) => {
 // 선택 모드 변경 시에도 렌더링 시작
 watch(selectionType, (newType) => {
   if (newType === 'range' && isFile.value && filteredPages.value.length > 0) {
-    console.log(`📦 범위 선택 모드로 전환`);
     startChunkRendering();
   }
 });
@@ -495,7 +490,6 @@ function loadNextChunk() {
   if (renderedPages.value.length >= filteredPages.value.length) {
     // 모든 페이지 렌더링 완료
     isLoadingMore.value = false;
-    console.log('🎉 모든 페이지 렌더링 완료!');
     return;
   }
 
@@ -511,7 +505,6 @@ function loadNextChunk() {
   // 이 청크의 끝 위치 저장
   lastChunkEnd.value = end;
 
-  console.log(`📦 청크 로드: 페이지 ${start + 1}~${end} (${chunkSize}개 동시 렌더링)`);
 
   // 폴백: 3초 내에 완료되지 않으면 강제로 다음 청크 (이벤트 누락 대비)
   chunkTimeoutId = setTimeout(() => {
@@ -522,7 +515,6 @@ function loadNextChunk() {
       // 모든 청크 완료되었을 때만 진행 바 숨김
       if (loadedCount.value >= filteredPages.value.length || renderedPages.value.length >= filteredPages.value.length) {
         isLoadingMore.value = false;
-        console.log('🎉 모든 페이지 완료!');
       }
     }
   }, 3000);
@@ -530,7 +522,6 @@ function loadNextChunk() {
 
 // 페이지 렌더링 완료 시
 function onPageLoaded(v, pageNum) {
-  console.log(`🔔 페이지 ${pageNum} 렌더링 완료!`);
 
   removeBrTags();
 
@@ -538,12 +529,10 @@ function onPageLoaded(v, pageNum) {
   pageWidth = v.width;
   pageHeight = v.height;
 
-  console.log(`   진행: ${loadedCount.value}/${filteredPages.value.length}`);
 
   // 모든 페이지 렌더링 완료 확인
   if (loadedCount.value >= filteredPages.value.length) {
     isLoadingMore.value = false;
-    console.log('🎉 모든 페이지 렌더링 완료!');
 
     // 타임아웃 취소
     if (chunkTimeoutId) {
@@ -555,7 +544,6 @@ function onPageLoaded(v, pageNum) {
 
   // 현재 청크의 모든 페이지가 완료되었는지 확인
   if (loadedCount.value >= lastChunkEnd.value) {
-    console.log(`✨ 청크 완료! (${lastChunkEnd.value}개)`);
 
     // 타임아웃 취소
     if (chunkTimeoutId) {
@@ -565,7 +553,6 @@ function onPageLoaded(v, pageNum) {
 
     // 다음 청크 로드 (진행 바는 유지)
     if (lastChunkEnd.value < filteredPages.value.length) {
-      console.log(`📦 다음 청크 로드...`);
       loadNextChunk();
     }
   }
