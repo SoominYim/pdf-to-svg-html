@@ -111,80 +111,90 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from "vue";
+import { watch } from "vue";
 import { VuePDF, usePDF } from "@tato30/vue-pdf";
 import JSZip from "jszip";
 import cssContent from "./style/style";
+import { storeToRefs } from "pinia";
+import { usePdfStore } from "./stores/usePdfStore";
+import { useInputUtils } from "./utils/inputUtils";
+import { useDebounceUtils } from "./utils/debounceUtils";
 
-const file = ref(null);
+const store = usePdfStore();
+
+const {
+  // State
+  file, fileName, isFile, isUpload, page, startPage, lastPage, selectedPage, selectionType, scale, displayScale, renderedPages, isLoadingMore, loadedCount, lastChunkEnd, renderCount, text_layer, open, isConvert,
+  // Computed
+  filteredPages,
+  // Actions
+} = storeToRefs(store);
+
+
+
+const { numInput } = useInputUtils();
+const { debounceFn } = useDebounceUtils();
+// const { setScale,
+//   incrementScale,
+//   decrementScale,
+//   resetScale, } = usePdfScale(debouncedStartChunkRendering, chunkTimeoutId);
+
+
+
+const CHUNK_SIZE = 5;
+
 const { pdf, pages } = usePDF(file, {
-
   isEvalSupported: false,
 });
 
-const text_layer = ref(true);
 
-const scale = ref(1.4);
-
-const page = ref(1);
-const fileName = ref("");
-const isFile = ref(false);
-const selectedPage = ref([]);
-const selectionType = ref("range");
-const isConvert = ref(false);
-const isUpload = ref(false);
 let pageWidth = 0;
 let pageHeight = 0;
-
-// 청크 렌더링 변수
-const renderedPages = ref([]);  // 현재 렌더링된 페이지들
-const isLoadingMore = ref(false);  // 로딩 중 여부
-const loadedCount = ref(0);  // 렌더링 완료된 페이지 수
-const CHUNK_SIZE = 5;  // 한 번에 5페이지씩
-const lastChunkEnd = ref(0);  // 마지막 청크의 끝 인덱스
-let chunkTimeoutId = null;  // 청크 타임아웃 ID
+let chunkTimeoutId = null;
 
 // 스케일 디바운싱
-const displayScale = ref(1.4);  // 화면에 표시되는 스케일 (초기값 scale과 동일)
 let scaleDebounceTimer = null;
 
-const renderCount = ref(0);
 
 const setScale = (newScale) => {
   const newValue = Math.max(0.5, Math.min(2, newScale));
-  displayScale.value = newValue;  // 즉시 UI 업데이트
+  displayScale.value = newValue;
 
-  // 디바운싱: 0.8초 후에 실제 렌더링
   clearTimeout(scaleDebounceTimer);
   scaleDebounceTimer = setTimeout(() => {
     scale.value = newValue;
 
-    // 범위 선택 모드에서 리렌더링 시작
-    if (selectionType.value === 'range' && renderedPages.value.length > 0) {
-      // 청크 타이머 취소
-      if (chunkTimeoutId) {
-        clearTimeout(chunkTimeoutId);
-        chunkTimeoutId = null;
-      }
+    // 청크 렌더링 완전 초기화
+    if (chunkTimeoutId) {
+      clearTimeout(chunkTimeoutId);
+      chunkTimeoutId = null;
+    }
 
-      // 진행 상태 리셋
+    if (selectionType.value === 'range' && renderedPages.value.length > 0) {
       loadedCount.value = 0;
       isLoadingMore.value = true;
+      debouncedStartChunkRendering(); // 디바운스된 함수 사용
     }
   }, 800);
 }
-const resetScale = (e) => {
-  e.target.value = Math.round(displayScale.value * 100);
-};
 
-const incrementScale = (count) => {
+const incrementScale = count => {
   setScale(displayScale.value + count);
 };
-const decrementScale = (count) => {
+
+const decrementScale = count => {
   setScale(displayScale.value - count);
 };
 
+const resetScale = e => {
+  e.target.value = Math.round(displayScale.value * 100);
+};
+
+
+
 // common START
+
+
 function changeFile(event) {
   const selectedFile = event.target.files[0];
   if (selectedFile) {
@@ -215,8 +225,18 @@ function changeFile(event) {
 
 
 
+// 전역 observer 변수
+let globalObserver = null;
+
 const removeBrTags = () => {
-  const observer = new MutationObserver((mutationsList) => {
+  // 기존 observer가 있으면 정리
+  if (globalObserver) {
+    globalObserver.disconnect();
+    globalObserver = null;
+  }
+
+  // 새로운 observer 생성
+  globalObserver = new MutationObserver((mutationsList) => {
     mutationsList.forEach((mutation) => {
       if (mutation.addedNodes) {
         mutation.addedNodes.forEach((node) => {
@@ -228,9 +248,10 @@ const removeBrTags = () => {
     });
   });
 
+  // PDF wrap 요소들에 observer 연결
   const pdfWrapElements = document.querySelectorAll(".pdf_wrap");
   pdfWrapElements.forEach((pdfWrapElement) => {
-    observer.observe(pdfWrapElement, { childList: true, subtree: true });
+    globalObserver.observe(pdfWrapElement, { childList: true, subtree: true });
   });
 };
 
@@ -286,8 +307,6 @@ function onLoaded(v) {
 // common END
 
 // 개별 선택 START
-const startPage = ref(1);
-const lastPage = ref(1);
 
 function changePage(e) {
   e.target.value > pages.value || e.target.value < 1 ? (e.target.value = page.value) : (page.value = +e.target.value);
@@ -339,10 +358,11 @@ async function exportChoiceHTML() {
   const svgResponse = await fetch("/getSVGFiles");
   const svgFiles = await svgResponse.json();
 
-  await svgFiles.forEach((svgFile, i) => {
+
+  for (const [i, svgFile] of svgFiles.entries()) {
     const svgBlob = new Blob([svgFile], { type: "image/svg+xml" });
     zip.folder("svg").file(`${fileName.value}_${String(selectedPage.value[i].page).padStart(3, "0")}.svg`, svgBlob);
-  });
+  }
 
   isConvert.value = false;
 
@@ -436,13 +456,7 @@ function resetLastPage(e) {
   e.target.value = lastPage.value;
 }
 
-const filteredPages = computed(() => {
-  const filtered = [];
-  for (let page = startPage.value; page <= lastPage.value; page++) {
-    filtered.push(page);
-  }
-  return filtered;
-});
+
 
 // 청크 렌더링 초기화 함수
 function startChunkRendering() {
@@ -457,25 +471,15 @@ function startChunkRendering() {
   loadNextChunk();
 }
 
-// 범위 변경 시 청크 렌더링 시작
-watch(filteredPages, (newPages) => {
-  // 파일이 없거나, 범위 선택 모드가 아니거나, 페이지가 없으면 무시
-  if (!isFile.value || selectionType.value !== 'range' || newPages.length === 0) return;
 
-  startChunkRendering();
-});
 
-// 파일 업로드 시에도 렌더링 시작
-watch(isFile, (fileLoaded) => {
-  if (fileLoaded && selectionType.value === 'range' && filteredPages.value.length > 0) {
-    startChunkRendering();
-  }
-});
+// 디바운스된 렌더링 함수
+const debouncedStartChunkRendering = debounceFn(startChunkRendering, 300);
 
-// 선택 모드 변경 시에도 렌더링 시작
-watch(selectionType, (newType) => {
-  if (newType === 'range' && isFile.value && filteredPages.value.length > 0) {
-    startChunkRendering();
+// 통합된 watch
+watch([isFile, selectionType, filteredPages], () => {
+  if (isFile.value && selectionType.value === 'range' && filteredPages.value.length > 0) {
+    debouncedStartChunkRendering();
   }
 });
 
@@ -495,7 +499,6 @@ function loadNextChunk() {
 
   const start = renderedPages.value.length;
   const end = Math.min(start + CHUNK_SIZE, filteredPages.value.length);
-  const chunkSize = end - start;
 
   // 5페이지 동시 추가
   for (let i = start; i < end; i++) {
@@ -521,7 +524,7 @@ function loadNextChunk() {
 }
 
 // 페이지 렌더링 완료 시
-function onPageLoaded(v, pageNum) {
+function onPageLoaded(v,) {
 
   removeBrTags();
 
@@ -578,10 +581,11 @@ async function exportRangeHTML() {
   const svgResponse = await fetch("/getSVGFiles");
   const svgFiles = await svgResponse.json();
 
-  await svgFiles.forEach((svgFile, i) => {
+  for (const [i, svgFile] of svgFiles.entries()) {
     const svgBlob = new Blob([svgFile], { type: "image/svg+xml" });
+    // selectedPage 대신 filteredPages 사용
     zip.folder("svg").file(`${fileName.value}_${String(filteredPages.value[i]).padStart(3, "0")}.svg`, svgBlob);
-  });
+  }
 
   isConvert.value = false;
 
@@ -653,28 +657,10 @@ async function exportRangeHTML() {
 // 범위 선택 END
 </script>
 
-<script>
-export default {
-  name: "MiniPdf",
-  data() {
-    return {
-      open: false,
-    };
-  },
-  methods: {
-    numInput(e) {
-      const regex = /[^0-9]/g;
-      if (regex.test(e.target.value)) {
-        e.target.value = e.target.value.replace(regex, "");
-      }
-    },
-  },
-};
-</script>
 
 <style lang="scss">
-@import "./style/annotationLayer.css";
-@import "./style/reset.css";
+@import "./style/pdf/annotationLayer.css";
+@import "./style/base/reset.css";
 
 @font-face {
   font-family: "Cafe24Supermagic-Bold-v1.0";
