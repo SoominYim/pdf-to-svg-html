@@ -45,7 +45,7 @@
         </li>
         <li v-if="isFile" class="scale_wrap">
           <button @click="decrementScale(0.1)">-</button>
-          <input type="text" id="scale" :value="Math.round(scale * 100)" @keydown.enter="updateScale"
+          <input type="text" id="scale" :value="Math.round(displayScale * 100)" @keydown.enter="updateScale"
             @focusout="resetScale" @input="numInput" />%
           <button @click="incrementScale(0.1)">+</button>
         </li>
@@ -81,8 +81,8 @@
 
     <!-- 렌더링 진행 바 (헤더 하단) -->
     <div v-if="isFile && selectionType == 'range' && isLoadingMore" class="top-progress-bar">
-      <div class="top-progress-fill" :style="{ width: renderProgress + '%' }"></div>
-      <span class="top-progress-text">{{ renderedPages.length }} / {{ filteredPages.length }}</span>
+      <div class="top-progress-fill" :style="{ width: (loadedCount / filteredPages.length) * 100 + '%' }"></div>
+      <span class="top-progress-text">{{ Math.round((loadedCount / filteredPages.length) * 100) }}%</span>
     </div>
 
     <div v-if="selectionType == 'range'" class="content" ref="content" :style="{
@@ -144,31 +144,46 @@ const CHUNK_SIZE = 5;  // 한 번에 5페이지씩
 const lastChunkEnd = ref(0);  // 마지막 청크의 끝 인덱스
 let chunkTimeoutId = null;  // 청크 타임아웃 ID
 
-// 렌더링 진행률
-const renderProgress = computed(() => {
-  if (selectionType.value !== 'range' || !filteredPages.value) return 0;
-  const total = filteredPages.value.length;
-  if (total === 0) return 0;
-  return (renderedPages.value.length / total) * 100;
-});
+// 스케일 디바운싱
+const displayScale = ref(1.4);  // 화면에 표시되는 스케일 (초기값 scale과 동일)
+let scaleDebounceTimer = null;
 
 const renderCount = ref(0);
 
-
 const setScale = (newScale) => {
-  scale.value = Math.max(0.5, Math.min(2, newScale));
+  const newValue = Math.max(0.5, Math.min(2, newScale));
+  displayScale.value = newValue;  // 즉시 UI 업데이트
 
+  // 디바운싱: 0.8초 후에 실제 렌더링
+  clearTimeout(scaleDebounceTimer);
+  scaleDebounceTimer = setTimeout(() => {
+    console.log(`⚙️ 스케일 적용: ${scale.value} → ${newValue}`);
+    scale.value = newValue;
 
+    // 범위 선택 모드에서 리렌더링 시작
+    if (selectionType.value === 'range' && renderedPages.value.length > 0) {
+      // 청크 타이머 취소
+      if (chunkTimeoutId) {
+        clearTimeout(chunkTimeoutId);
+        chunkTimeoutId = null;
+      }
+
+      // 진행 상태 리셋
+      loadedCount.value = 0;
+      isLoadingMore.value = true;
+      console.log(`   리렌더링 시작: ${renderedPages.value.length}페이지`);
+    }
+  }, 800);
 }
 const resetScale = (e) => {
-  e.target.value = Math.round(scale.value * 100);
+  e.target.value = Math.round(displayScale.value * 100);
 };
 
 const incrementScale = (count) => {
-  setScale(scale.value + count);
+  setScale(displayScale.value + count);
 };
 const decrementScale = (count) => {
-  setScale(scale.value - count);
+  setScale(displayScale.value - count);
 };
 
 // common START
@@ -221,44 +236,6 @@ const removeBrTags = () => {
   });
 };
 
-let isCtrl = false;
-document.addEventListener("keydown", function (e) {
-  if (e.which === 17) {
-    isCtrl = true;
-  }
-});
-document.addEventListener("keyup", function (e) {
-  if (e.which === 17) {
-    isCtrl = false;
-  }
-});
-
-document.addEventListener(
-  "wheel",
-  function (e) {
-    if (isCtrl) {
-      e.preventDefault();
-      if (e.deltaY > 0) {
-        decrementScale(0.1);
-      } else if (e.deltaY < 0) {
-        incrementScale(0.1);
-      }
-    }
-  },
-  { passive: false }
-);
-
-document.addEventListener("keydown", function (e) {
-  if (e.ctrlKey) {
-    if (e.key === "-") {
-      e.preventDefault();
-      decrementScale(0.1);
-    } else if (e.key === "=" || e.key === "+") {
-      e.preventDefault();
-      incrementScale(0.1);
-    }
-  }
-});
 
 /**
  * @param {element} parentNode 최상위 부모노드
@@ -435,7 +412,10 @@ async function exportChoiceHTML() {
 // 범위 선택 START
 
 function updateScale(e) {
+
   setScale(e.target.value / 100);
+
+  startChunkRendering();
 }
 function updateStartPages(e) {
   if (e.target.value > pages.value || e.target.value < 1 || e.target.value > lastPage.value) {
@@ -533,16 +513,19 @@ function loadNextChunk() {
 
   console.log(`📦 청크 로드: 페이지 ${start + 1}~${end} (${chunkSize}개 동시 렌더링)`);
 
-  // 폴백: 2초 내에 완료되지 않으면 강제로 다음 청크 (이벤트 누락 대비)
+  // 폴백: 3초 내에 완료되지 않으면 강제로 다음 청크 (이벤트 누락 대비)
   chunkTimeoutId = setTimeout(() => {
-    console.warn(`⚠️ 타임아웃! 2초 내 완료 안 됨. 강제로 다음 청크 로드 (loadedCount: ${loadedCount.value}/${lastChunkEnd.value})`);
+    console.warn(`⚠️ 타임아웃! 3초 내 완료 안 됨. 강제로 다음 청크 로드 (loadedCount: ${loadedCount.value}/${lastChunkEnd.value})`);
     if (lastChunkEnd.value < filteredPages.value.length) {
-      loadNextChunk();
+      loadNextChunk(); // 다음 청크 로드 (진행 바 유지)
     } else {
-      isLoadingMore.value = false;
-      console.log('🎉 타임아웃이지만 모든 청크 완료!');
+      // 모든 청크 완료되었을 때만 진행 바 숨김
+      if (loadedCount.value >= filteredPages.value.length || renderedPages.value.length >= filteredPages.value.length) {
+        isLoadingMore.value = false;
+        console.log('🎉 모든 페이지 완료!');
+      }
     }
-  }, 2000);
+  }, 3000);
 }
 
 // 페이지 렌더링 완료 시
@@ -555,12 +538,24 @@ function onPageLoaded(v, pageNum) {
   pageWidth = v.width;
   pageHeight = v.height;
 
-  console.log(`   전체 진행: ${loadedCount.value}/${filteredPages.value.length}`);
-  console.log(`   청크 진행: ${loadedCount.value}/${lastChunkEnd.value}`);
+  console.log(`   진행: ${loadedCount.value}/${filteredPages.value.length}`);
+
+  // 모든 페이지 렌더링 완료 확인
+  if (loadedCount.value >= filteredPages.value.length) {
+    isLoadingMore.value = false;
+    console.log('🎉 모든 페이지 렌더링 완료!');
+
+    // 타임아웃 취소
+    if (chunkTimeoutId) {
+      clearTimeout(chunkTimeoutId);
+      chunkTimeoutId = null;
+    }
+    return;
+  }
 
   // 현재 청크의 모든 페이지가 완료되었는지 확인
   if (loadedCount.value >= lastChunkEnd.value) {
-    console.log(`✨ 청크 완료! (${lastChunkEnd.value}개 완료)`);
+    console.log(`✨ 청크 완료! (${lastChunkEnd.value}개)`);
 
     // 타임아웃 취소
     if (chunkTimeoutId) {
@@ -568,14 +563,10 @@ function onPageLoaded(v, pageNum) {
       chunkTimeoutId = null;
     }
 
-    // 아직 렌더링할 페이지가 남아있으면 다음 청크 로드
+    // 다음 청크 로드 (진행 바는 유지)
     if (lastChunkEnd.value < filteredPages.value.length) {
-      console.log(`📦 다음 청크 로드 시작... (현재: ${lastChunkEnd.value}/${filteredPages.value.length})`);
+      console.log(`📦 다음 청크 로드...`);
       loadNextChunk();
-    } else {
-      // 모든 페이지 완료
-      isLoadingMore.value = false;
-      console.log('🎉 모든 페이지 렌더링 완료!');
     }
   }
 }
