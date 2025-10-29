@@ -78,25 +78,32 @@
         </li>
       </ul>
     </div>
+
+    <!-- 렌더링 진행 바 (헤더 하단) -->
+    <div v-if="isFile && selectionType == 'range' && isLoadingMore" class="top-progress-bar">
+      <div class="top-progress-fill" :style="{ width: renderProgress + '%' }"></div>
+      <span class="top-progress-text">{{ renderedPages.length }} / {{ filteredPages.length }}</span>
+    </div>
+
     <div v-if="selectionType == 'range'" class="content" ref="content" :style="{
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'flex-start',
     }">
-      <div class="pdf_wrap" v-for="page in filteredPages" :key="page">
-        <VuePDF @loaded="onLoaded" ref="vuePDFRef" :scale="scale" :pdf="pdf" :page="page" :text-layer="text_layer">
-          <div class="loading-overlay">
-            <div class="loader"></div>
-          </div>
+      <!-- 청크 단위로 렌더링된 페이지만 표시 -->
+      <div class="pdf_wrap" v-for="page in renderedPages" :key="page">
+        <VuePDF @loaded="(v) => onPageLoaded(v, page)" :scale="scale" :pdf="pdf" :page="page" :text-layer="text_layer">
         </VuePDF>
       </div>
+
+
     </div>
     <div v-if="selectionType == 'choice'" class="content" ref="content" :style="{}">
       <div class="pdf_wrap">
-        <VuePDF @loaded="onLoaded" ref="vuePDFRef" :scale="scale" :pdf="pdf" :page="page" :text-layer="text_layer">
-          <div class="loading-overlay">
-            <div class="loader"></div>
-          </div>
+
+        <VuePDF @loaded="onLoaded" :scale="scale" :pdf="pdf" :page="page" :text-layer="text_layer">
+          <!-- <div class="loading-odiv>
+          </div> -->
         </VuePDF>
       </div>
     </div>
@@ -104,32 +111,55 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { VuePDF, usePDF } from "@tato30/vue-pdf";
 import JSZip from "jszip";
 import cssContent from "./style/style";
 
 const file = ref(null);
-const { pdf, pages } = usePDF(file);
+const { pdf, pages } = usePDF(file, {
+
+  isEvalSupported: false,
+});
 
 const text_layer = ref(true);
 
-const scale = ref(1);
+const scale = ref(1.4);
 
 const page = ref(1);
 const fileName = ref("");
-const isFile = ref(true);
+const isFile = ref(false);
 const selectedPage = ref([]);
-const selectionType = ref("choice");
+const selectionType = ref("range");
 const isConvert = ref(false);
 const isUpload = ref(false);
 let pageWidth = 0;
 let pageHeight = 0;
 
-const setScale = (newScale) => {
-  scale.value = Math.max(0.5, Math.min(4, newScale));
-};
+// 청크 렌더링 변수
+const renderedPages = ref([]);  // 현재 렌더링된 페이지들
+const isLoadingMore = ref(false);  // 로딩 중 여부
+const loadedCount = ref(0);  // 렌더링 완료된 페이지 수
+const CHUNK_SIZE = 5;  // 한 번에 5페이지씩
+const lastChunkEnd = ref(0);  // 마지막 청크의 끝 인덱스
+let chunkTimeoutId = null;  // 청크 타임아웃 ID
 
+// 렌더링 진행률
+const renderProgress = computed(() => {
+  if (selectionType.value !== 'range' || !filteredPages.value) return 0;
+  const total = filteredPages.value.length;
+  if (total === 0) return 0;
+  return (renderedPages.value.length / total) * 100;
+});
+
+const renderCount = ref(0);
+
+
+const setScale = (newScale) => {
+  scale.value = Math.max(0.5, Math.min(2, newScale));
+
+
+}
 const resetScale = (e) => {
   e.target.value = Math.round(scale.value * 100);
 };
@@ -169,6 +199,8 @@ function changeFile(event) {
       });
   }
 }
+
+
 
 const removeBrTags = () => {
   const observer = new MutationObserver((mutationsList) => {
@@ -261,6 +293,7 @@ function removeEl(parentNode, a, b, c) {
 
 let wheelTimer; // 휠 이벤트 종료를 감지하기 위한 타이머 변수
 
+
 function onLoaded(v) {
   removeBrTags();
   text_layer.value = false;
@@ -271,6 +304,8 @@ function onLoaded(v) {
   }, 500);
   pageWidth = v.width;
   pageHeight = v.height;
+
+  renderCount.value++;
 }
 
 // common END
@@ -288,8 +323,8 @@ function resetPage(e) {
 }
 
 function selectChoicePage() {
-  const a = document.querySelector("canvas");
-  const canvasDataURL = a.toDataURL();
+  const canvas = document.querySelector("canvas");
+  const canvasDataURL = canvas.toDataURL();
   const isNewPageUnique = !selectedPage.value.some((item) => item.page === page.value);
   const contentHTML = document.querySelector("html").cloneNode(true);
 
@@ -430,6 +465,120 @@ const filteredPages = computed(() => {
   }
   return filtered;
 });
+
+// 청크 렌더링 초기화 함수
+function startChunkRendering() {
+  console.log(`📦 청크 렌더링 시작: 총 ${filteredPages.value.length}페이지, 5페이지씩`);
+
+  // 초기화
+  renderedPages.value = [];
+  loadedCount.value = 0;
+  lastChunkEnd.value = 0;
+  isLoadingMore.value = true;
+
+  // 첫 번째 청크 로드
+  loadNextChunk();
+}
+
+// 범위 변경 시 청크 렌더링 시작
+watch(filteredPages, (newPages) => {
+  // 파일이 없거나, 범위 선택 모드가 아니거나, 페이지가 없으면 무시
+  if (!isFile.value || selectionType.value !== 'range' || newPages.length === 0) return;
+
+  startChunkRendering();
+});
+
+// 파일 업로드 시에도 렌더링 시작
+watch(isFile, (fileLoaded) => {
+  if (fileLoaded && selectionType.value === 'range' && filteredPages.value.length > 0) {
+    console.log(`📦 파일 업로드 완료`);
+    startChunkRendering();
+  }
+});
+
+// 선택 모드 변경 시에도 렌더링 시작
+watch(selectionType, (newType) => {
+  if (newType === 'range' && isFile.value && filteredPages.value.length > 0) {
+    console.log(`📦 범위 선택 모드로 전환`);
+    startChunkRendering();
+  }
+});
+
+// 다음 청크 로드 (5페이지씩)
+function loadNextChunk() {
+  // 기존 타임아웃 취소
+  if (chunkTimeoutId) {
+    clearTimeout(chunkTimeoutId);
+    chunkTimeoutId = null;
+  }
+
+  if (renderedPages.value.length >= filteredPages.value.length) {
+    // 모든 페이지 렌더링 완료
+    isLoadingMore.value = false;
+    console.log('🎉 모든 페이지 렌더링 완료!');
+    return;
+  }
+
+  const start = renderedPages.value.length;
+  const end = Math.min(start + CHUNK_SIZE, filteredPages.value.length);
+  const chunkSize = end - start;
+
+  // 5페이지 동시 추가
+  for (let i = start; i < end; i++) {
+    renderedPages.value.push(filteredPages.value[i]);
+  }
+
+  // 이 청크의 끝 위치 저장
+  lastChunkEnd.value = end;
+
+  console.log(`📦 청크 로드: 페이지 ${start + 1}~${end} (${chunkSize}개 동시 렌더링)`);
+
+  // 폴백: 2초 내에 완료되지 않으면 강제로 다음 청크 (이벤트 누락 대비)
+  chunkTimeoutId = setTimeout(() => {
+    console.warn(`⚠️ 타임아웃! 2초 내 완료 안 됨. 강제로 다음 청크 로드 (loadedCount: ${loadedCount.value}/${lastChunkEnd.value})`);
+    if (lastChunkEnd.value < filteredPages.value.length) {
+      loadNextChunk();
+    } else {
+      isLoadingMore.value = false;
+      console.log('🎉 타임아웃이지만 모든 청크 완료!');
+    }
+  }, 2000);
+}
+
+// 페이지 렌더링 완료 시
+function onPageLoaded(v, pageNum) {
+  console.log(`🔔 페이지 ${pageNum} 렌더링 완료!`);
+
+  removeBrTags();
+
+  loadedCount.value++;
+  pageWidth = v.width;
+  pageHeight = v.height;
+
+  console.log(`   전체 진행: ${loadedCount.value}/${filteredPages.value.length}`);
+  console.log(`   청크 진행: ${loadedCount.value}/${lastChunkEnd.value}`);
+
+  // 현재 청크의 모든 페이지가 완료되었는지 확인
+  if (loadedCount.value >= lastChunkEnd.value) {
+    console.log(`✨ 청크 완료! (${lastChunkEnd.value}개 완료)`);
+
+    // 타임아웃 취소
+    if (chunkTimeoutId) {
+      clearTimeout(chunkTimeoutId);
+      chunkTimeoutId = null;
+    }
+
+    // 아직 렌더링할 페이지가 남아있으면 다음 청크 로드
+    if (lastChunkEnd.value < filteredPages.value.length) {
+      console.log(`📦 다음 청크 로드 시작... (현재: ${lastChunkEnd.value}/${filteredPages.value.length})`);
+      loadNextChunk();
+    } else {
+      // 모든 페이지 완료
+      isLoadingMore.value = false;
+      console.log('🎉 모든 페이지 렌더링 완료!');
+    }
+  }
+}
 
 async function exportRangeHTML() {
   const zip = new JSZip();
@@ -832,6 +981,7 @@ export default {
     .pdf_wrap {
       height: fit-content;
       margin: 10px;
+      position: relative;
     }
   }
 }
@@ -871,5 +1021,34 @@ export default {
   100% {
     transform: rotate(360deg);
   }
+}
+
+// 상단 진행 바 (작고 깔끔하게)
+.top-progress-bar {
+  position: relative;
+  width: 100%;
+  height: 14px;
+  background: #e0e0e0;
+  overflow: hidden;
+}
+
+.top-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #41b883, #35976b);
+  transition: width 0.3s ease;
+  box-shadow: 0 0 8px rgba(65, 184, 131, 0.6);
+}
+
+.top-progress-text {
+  position: absolute;
+  top: 0;
+  right: 10px;
+  font-size: 0.85rem;
+  color: white;
+  background: rgba(65, 184, 131, 0.95);
+  padding: 2px 8px;
+  border-radius: 0 0 4px 4px;
+  font-weight: bold;
+  z-index: 2;
 }
 </style>
