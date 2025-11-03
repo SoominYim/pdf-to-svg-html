@@ -7,6 +7,7 @@ const bodyParser = require("body-parser");
 const uploadFile = require("./modules/uploadFile");
 const convertFile = require("./modules/convertFile");
 const getSVGFile = require("./modules/getSVGFile");
+const deleteFile = require("./modules/deleteFile");
 
 app.use(bodyParser.json());
 
@@ -17,6 +18,8 @@ app.use(express.static(__dirname + "/dist"));
 app.post("/upload", uploadFile);
 
 app.post("/convert", convertFile);
+
+app.get("/deleteFile", deleteFile);
 
 app.get("/getSVGFiles", getSVGFile);
 
