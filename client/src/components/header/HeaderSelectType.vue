@@ -1,10 +1,8 @@
 <template>
   <div class="selectionType_wrap">
-    <input type="radio" name="selectionType" id="choice" value="choice" v-model="selectionType"
-      @change="handleSelectionType('choice')" />
+    <input type="radio" name="selectionType" id="choice" value="choice" v-model="selectionType" />
     <label for="choice">개별 선택</label>
-    <input type="radio" name="selectionType" id="range" value="range" v-model="selectionType"
-      @change="handleSelectionType('range')" />
+    <input type="radio" name="selectionType" id="range" value="range" v-model="selectionType" />
     <label for="range">범위 선택</label>
   </div>
 </template>
@@ -16,10 +14,5 @@ import { usePdfStore } from "../../stores/usePdfStore";
 
 const pdfStore = usePdfStore();
 const { selectionType } = storeToRefs(pdfStore);
-const { setSelectionType } = pdfStore;
-
-const handleSelectionType = (type) => {
-  setSelectionType(type);
-};
 
 </script>

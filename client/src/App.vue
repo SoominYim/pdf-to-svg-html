@@ -5,7 +5,8 @@
       <HeaderSelectType v-if="!isFile" />
       <ul class="tool-bar" style="display: flex; justify-content: center; list-style-type: none; gap: 10px">
         <li v-if="isFile">
-          <p>{{ fileName }}.pdf</p>
+          <span>{{ fileName }}.pdf</span>
+          <button style="border: 1px solid;" @click="deleteFile">x</button>
         </li>
 
         <li v-if="!isFile" style="margin-right: 5px" class="file_wrap">
@@ -77,7 +78,8 @@
     }">
       <!-- 청크 단위로 렌더링된 페이지만 표시 -->
       <div class="pdf_wrap" v-for="page in renderedPages" :key="page">
-        <VuePDF @loaded="(v) => onPageLoaded(v, page)" :scale="scale" :pdf="pdf" :page="page" :text-layer="text_layer">
+        <VuePDF @loaded="(v) => onPageLoaded(v, page)" :scale="scale" :pdf="pdf" :page="page" :text-layer="text_layer"
+          ref="pdfRef">
         </VuePDF>
       </div>
 
@@ -86,7 +88,7 @@
     <div v-if="selectionType == 'choice'" class="content" ref="content" :style="{}">
       <div class="pdf_wrap">
 
-        <VuePDF @loaded="onLoaded" :scale="scale" :pdf="pdf" :page="page" :text-layer="text_layer">
+        <VuePDF @loaded="onLoaded" :scale="scale" :pdf="pdf" :page="page" :text-layer="text_layer" ref="pdfRef">
           <!-- <div class="loading-odiv>
           </div> -->
         </VuePDF>
@@ -100,7 +102,7 @@
 import HeaderSelectType from "./components/header/HeaderSelectType.vue";
 
 
-import { watch, onMounted, onBeforeUnmount } from "vue";
+import { watch, ref } from "vue";
 import { VuePDF, usePDF } from "@tato30/vue-pdf";
 import JSZip from "jszip";
 import cssContent from "./style/style";
@@ -142,29 +144,13 @@ const {
 const { numInput } = useInputUtils();
 const { debounceFn } = useDebounceUtils();
 
+const pdfRef = ref({});
 
-function handleBeforeUnload(event) {
+window.addEventListener("beforeunload", (event) => {
   if (isFile.value) {
-    const blob = new Blob([], { type: 'application/x-www-form-urlencoded' });
-    navigator.sendBeacon("/deleteFile", blob);
+    event.preventDefault();
+    return "";
   }
-
-  event.preventDefault();
-  event.returnValue = ""; // 브라우저 기본 confirm 띄우기
-}
-
-onMounted(() => {
-  // 페이지 이탈 시 파일 삭제 (beforeunload는 비동기 요청이 안전하지 않으므로 navigator.sendBeacon 사용)
-});
-onBeforeUnmount(() => {
-  // 파일이 업로드되어 있으면 삭제
-  if (isFile.value) {
-    // 동기적으로 삭제 (언마운트 시 안전)
-    fetch("/deleteFile", {
-      method: "GET"
-    }).catch(err => console.error("File delete error:", err));
-  }
-  window.removeEventListener('beforeunload', handleBeforeUnload);
 });
 const CHUNK_SIZE = 5;
 
@@ -728,7 +714,56 @@ async function exportRangeHTML() {
   });
 }
 
-// 범위 선택 END
+function deleteFile() {
+  fetch("/deleteFile", {
+    method: "DELETE"
+  }).then(response => {
+    if (response.ok) {
+
+      // pdfRef가 배열인 경우 (v-for 사용)
+      if (Array.isArray(pdfRef.value)) {
+        console.log("cancel 됨?")
+        pdfRef.value.forEach(ref => {
+          if (ref && typeof ref.cancel === 'function') {
+            ref.cancel();
+          }
+        });
+      }
+      // pdfRef가 단일 객체인 경우 (choice 모드)
+      else if (pdfRef.value && typeof pdfRef.value.cancel === 'function') {
+        pdfRef.value.cancel();
+      }
+
+
+      file.value = null;
+      isFile.value = false;
+
+      fileName.value = "";
+      selectedPage.value = [];
+      filteredPages.value = [];
+      renderedPages.value = [];
+      loadedCount.value = 0;
+      lastChunkEnd.value = 0;
+      isLoadingMore.value = false;
+      isConvert.value = false;
+      isUpload.value = false;
+      open.value = false;
+      page.value = 1;
+      startPage.value = 1;
+      lastPage.value = pages.value;
+      text_layer.value = true;
+      renderCount.value = 0;
+      pageWidth = 0;
+      pageHeight = 0;
+      chunkTimeoutId = null;
+      scaleDebounceTimer = null;
+      isScaleChanging = false;
+      setScale(1.4);
+
+    }
+  }).catch(err => console.error("File delete error:", err));
+}
+
 </script>
 
 
@@ -770,6 +805,21 @@ async function exportRangeHTML() {
     background-color: #41b883;
     display: flex;
     justify-content: center;
+
+    .tool-bar {
+      &>li {
+        &>button {
+          border-radius: 5px;
+          padding: 0px 6px 1px 6px;
+          margin-left: 4px;
+
+          &:hover {
+            background-color: #35976b;
+          }
+        }
+
+      }
+    }
 
     &>div {
       display: flex;
@@ -1006,6 +1056,8 @@ async function exportRangeHTML() {
           }
         }
       }
+
+
     }
   }
 

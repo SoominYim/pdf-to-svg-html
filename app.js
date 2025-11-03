@@ -19,7 +19,7 @@ app.post("/upload", uploadFile);
 
 app.post("/convert", convertFile);
 
-app.get("/deleteFile", deleteFile);
+app.delete("/deleteFile", deleteFile);
 
 app.get("/getSVGFiles", getSVGFile);
 

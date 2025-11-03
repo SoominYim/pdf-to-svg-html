@@ -1,7 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
-const deleteFile = require("./deleteFile");
+const { deletePdfFiles } = require("./deleteFile"); // 함수만 import
 
 const inDir = path.join(__dirname, "..", "input");
 
@@ -34,21 +34,7 @@ const _u = function (req, res) {
     }
     // 파일 존재시 기존 파일 삭제
     if (files.length > 1) {
-      // files.forEach(file => {
-      //   const filePath = path.join(inDir, file);
-
-      //   // 파일 확장자가 '.pdf' 인 경우에만 삭제
-      //   if (path.extname(file).toLowerCase() === ".pdf") {
-      //     fs.unlink(filePath, err => {
-      //       if (err) {
-      //         console.error("Error deleting file:", filePath, err);
-      //       } else {
-      //         console.log("Deleted file:", filePath);
-      //       }
-      //     });
-      //   }
-      // });
-      deleteFile();
+      deletePdfFiles(); // 함수 직접 호출 (req, res 불필요)
     }
     uploadFile();
   });
