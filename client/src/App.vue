@@ -89,8 +89,6 @@
       <div class="pdf_wrap">
 
         <VuePDF @loaded="onLoaded" :scale="scale" :pdf="pdf" :page="page" :text-layer="text_layer" ref="pdfRef">
-          <!-- <div class="loading-odiv>
-          </div> -->
         </VuePDF>
       </div>
     </div>
@@ -121,6 +119,9 @@ import { usePdfStore } from "./stores/usePdfStore";
 
 import { useInputUtils } from "./utils/inputUtils";
 import { useDebounceUtils } from "./utils/debounceUtils";
+import { cancelPdfUtils } from "./utils/pdfRenderer";
+import { formatHTMLDocumentUtils, removeElements } from "./utils/htmlFomatter";
+
 
 const pdfFileStore = usePdfFileStore();
 const pdfPageStore = usePdfPageStore();
@@ -146,12 +147,19 @@ const { debounceFn } = useDebounceUtils();
 
 const pdfRef = ref({});
 
-window.addEventListener("beforeunload", (event) => {
+
+
+const handleBeforeUnload = (event) => {
   if (isFile.value) {
     event.preventDefault();
     return "";
   }
-});
+};
+
+
+window.addEventListener("beforeunload", handleBeforeUnload);
+
+
 const CHUNK_SIZE = 5;
 
 const { pdf, pages } = usePDF(file, {
@@ -171,6 +179,8 @@ let isScaleChanging = false;
 const setScale = (newScale) => {
   const newValue = Math.max(0.5, Math.min(2, newScale));
   displayScale.value = newValue;
+
+  cancelPdfUtils(pdfRef.value);
 
   clearTimeout(scaleDebounceTimer);
   scaleDebounceTimer = setTimeout(() => {
@@ -242,34 +252,34 @@ function changeFile(event) {
 
 
 // 전역 observer 변수
-// let globalObserver = null;
+let globalObserver = null;
 
-// const removeBrTags = () => {
-//   // 기존 observer가 있으면 정리
-//   if (globalObserver) {
-//     globalObserver.disconnect();
-//     globalObserver = null;
-//   }
+const removeBrTags = () => {
+  // 기존 observer가 있으면 정리
+  if (globalObserver) {
+    globalObserver.disconnect();
+    globalObserver = null;
+  }
 
-//   // 새로운 observer 생성
-//   globalObserver = new MutationObserver((mutationsList) => {
-//     mutationsList.forEach((mutation) => {
-//       if (mutation.addedNodes) {
-//         mutation.addedNodes.forEach((node) => {
-//           if (node.tagName === "BR") {
-//             node.remove();
-//           }
-//         });
-//       }
-//     });
-//   });
+  // 새로운 observer 생성
+  globalObserver = new MutationObserver((mutationsList) => {
+    mutationsList.forEach((mutation) => {
+      if (mutation.addedNodes) {
+        mutation.addedNodes.forEach((node) => {
+          if (node.tagName === "BR") {
+            node.remove();
+          }
+        });
+      }
+    });
+  });
 
-//   // PDF wrap 요소들에 observer 연결
-//   const pdfWrapElements = document.querySelectorAll(".pdf_wrap");
-//   pdfWrapElements.forEach((pdfWrapElement) => {
-//     globalObserver.observe(pdfWrapElement, { childList: true, subtree: true });
-//   });
-// };
+  // PDF wrap 요소들에 observer 연결
+  const pdfWrapElements = document.querySelectorAll(".pdf_wrap");
+  pdfWrapElements.forEach((pdfWrapElement) => {
+    globalObserver.observe(pdfWrapElement, { childList: true, subtree: true });
+  });
+};
 
 
 /**
@@ -279,35 +289,12 @@ function changeFile(event) {
  * @param {string} c style 삭제
  */
 
-function removeEl(parentNode, a, b, c) {
-  const elementsToRemove = parentNode.querySelectorAll(a);
-  const elementsToRemoveClasses = parentNode.querySelectorAll(b);
-  const elementsToRemoveStyle = parentNode.querySelectorAll(c);
-  elementsToRemoveClasses.forEach((element) => {
-    element.classList = "";
-  });
-  elementsToRemove.forEach((element) => element.parentNode.removeChild(element));
-  elementsToRemoveStyle.forEach((element) => {
-    element.removeAttribute("style");
-  });
-
-  var divElements = parentNode.querySelectorAll("div");
-
-  // 각 div 요소에서 data-v-로 시작하는 속성 제거
-  divElements.forEach(function (divElement) {
-    Array.from(divElement.attributes).forEach(function (attribute) {
-      if (attribute.name.startsWith("data-v-")) {
-        divElement.removeAttribute(attribute.name);
-      }
-    });
-  });
-}
 
 let wheelTimer; // 휠 이벤트 종료를 감지하기 위한 타이머 변수
 
 
 function onLoaded(v) {
-  // removeBrTags();
+  removeBrTags();
   text_layer.value = false;
 
   clearTimeout(wheelTimer);
@@ -389,7 +376,7 @@ async function exportChoiceHTML() {
     const b = ".v-application";
     const c = ".v-main";
 
-    removeEl(_v, a, b, c);
+    removeElements(_v, a, b, c);
 
     const linkElement = document.createElement("link");
     linkElement.rel = "stylesheet";
@@ -427,7 +414,7 @@ async function exportChoiceHTML() {
     _v.querySelector("body").appendChild(scriptElement);
 
     // Blob 생성 및 ZIP 파일에 추가
-    const blob = new Blob([_v.innerHTML], { type: "text/html" });
+    const blob = new Blob([formatHTMLDocumentUtils(_v)], { type: "text/html" });
     zip.file(`${fileName.value}_${String(v.page).padStart(3, "0")}.html`, blob);
   });
 
@@ -586,7 +573,7 @@ function loadNextChunk() {
 // 페이지 렌더링 완료 시
 function onPageLoaded(v,) {
 
-  // removeBrTags();
+  removeBrTags();
 
   loadedCount.value++;
   pageWidth = v.width;
@@ -657,7 +644,7 @@ async function exportRangeHTML() {
     const b = ".v-application";
     const c = ".v-main";
 
-    removeEl(contentHTML, a, b, c);
+    removeElements(contentHTML, a, b, c);
 
     const _pdf = document.querySelectorAll(".pdf_wrap");
     const pdfWrap = _pdf[i].cloneNode(true);
@@ -698,7 +685,7 @@ async function exportRangeHTML() {
     contentHTML.querySelector("body").appendChild(scriptElement);
 
     // Blob 생성 및 ZIP 파일에 추가
-    const blob = new Blob([contentHTML.innerHTML], { type: "text/html" });
+    const blob = new Blob([formatHTMLDocumentUtils(contentHTML)], { type: "text/html" });
     zip.file(`${fileName.value}_${String(v).padStart(3, "0")}.html`, blob);
   });
 
@@ -715,51 +702,14 @@ async function exportRangeHTML() {
 }
 
 function deleteFile() {
+  // 페이지 이동 시 감지 컨펌 삭제
+  // window.removeEventListener("beforeunload", handleBeforeUnload);
+
   fetch("/deleteFile", {
     method: "DELETE"
   }).then(response => {
     if (response.ok) {
-
-      // pdfRef가 배열인 경우 (v-for 사용)
-      if (Array.isArray(pdfRef.value)) {
-        console.log("cancel 됨?")
-        pdfRef.value.forEach(ref => {
-          if (ref && typeof ref.cancel === 'function') {
-            ref.cancel();
-          }
-        });
-      }
-      // pdfRef가 단일 객체인 경우 (choice 모드)
-      else if (pdfRef.value && typeof pdfRef.value.cancel === 'function') {
-        pdfRef.value.cancel();
-      }
-
-
-      file.value = null;
-      isFile.value = false;
-
-      fileName.value = "";
-      selectedPage.value = [];
-      filteredPages.value = [];
-      renderedPages.value = [];
-      loadedCount.value = 0;
-      lastChunkEnd.value = 0;
-      isLoadingMore.value = false;
-      isConvert.value = false;
-      isUpload.value = false;
-      open.value = false;
-      page.value = 1;
-      startPage.value = 1;
-      lastPage.value = pages.value;
-      text_layer.value = true;
-      renderCount.value = 0;
-      pageWidth = 0;
-      pageHeight = 0;
-      chunkTimeoutId = null;
-      scaleDebounceTimer = null;
-      isScaleChanging = false;
-      setScale(1.4);
-
+      window.location.reload();
     }
   }).catch(err => console.error("File delete error:", err));
 }
