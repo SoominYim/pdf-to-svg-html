@@ -1,6 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
+const deleteFile = require("./deleteFile");
 
 const inDir = path.join(__dirname, "..", "input");
 
@@ -16,7 +17,7 @@ const upload = multer({ storage: storage });
 
 const _u = function (req, res) {
   function uploadFile() {
-    upload.single("myFile")(req, res, (err) => {
+    upload.single("myFile")(req, res, err => {
       if (err) {
         console.error("Error uploading file:", err);
         return res.status(500).send("Internal server error.");
@@ -33,20 +34,21 @@ const _u = function (req, res) {
     }
     // 파일 존재시 기존 파일 삭제
     if (files.length > 1) {
-      files.forEach((file) => {
-        const filePath = path.join(inDir, file);
+      // files.forEach(file => {
+      //   const filePath = path.join(inDir, file);
 
-        // 파일 확장자가 '.pdf' 인 경우에만 삭제
-        if (path.extname(file).toLowerCase() === ".pdf") {
-          fs.unlink(filePath, (err) => {
-            if (err) {
-              console.error("Error deleting file:", filePath, err);
-            } else {
-              console.log("Deleted file:", filePath);
-            }
-          });
-        }
-      });
+      //   // 파일 확장자가 '.pdf' 인 경우에만 삭제
+      //   if (path.extname(file).toLowerCase() === ".pdf") {
+      //     fs.unlink(filePath, err => {
+      //       if (err) {
+      //         console.error("Error deleting file:", filePath, err);
+      //       } else {
+      //         console.log("Deleted file:", filePath);
+      //       }
+      //     });
+      //   }
+      // });
+      deleteFile();
     }
     uploadFile();
   });
