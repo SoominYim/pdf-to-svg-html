@@ -1,15 +1,5 @@
 <template>
-  <div class="convertLoading"
-    style="background: rgba(0, 0, 0, 0.3); width: 100vw; height: 100vh; position: absolute; z-index: 9999"
-    v-if="isConvert || isUpload">
-    <div class="loading-overlay">
-      <div class="loader"></div>
-    </div>
-    <div style="position: relative; font-size: 50px; color: #f3f3f3; top: calc(50% - -75px); text-align: center">
-      <span v-if="isConvert">변환중</span>
-      <span v-if="isUpload">파일 업로드중</span>
-    </div>
-  </div>
+  <PdfLoading />
   <div class="pdfContainer" style="text-align: center">
     <div class="header">
       <div v-if="!isFile">
@@ -111,22 +101,40 @@
 </template>
 
 <script setup>
-import { watch } from "vue";
+import { watch, onMounted, onBeforeUnmount } from "vue";
 import { VuePDF, usePDF } from "@tato30/vue-pdf";
 import JSZip from "jszip";
 import cssContent from "./style/style";
+
+
+import PdfLoading from "./components/pdfLoading.vue";
+
 import { storeToRefs } from "pinia";
+import { usePdfFileStore } from "./stores/usePdfFileStore";
+import { usePdfPageStore } from "./stores/usePdfPageStore";
+import { usePdfRenderStore } from "./stores/usePdfRenderStore";
+
 import { usePdfStore } from "./stores/usePdfStore";
+
+
+
 import { useInputUtils } from "./utils/inputUtils";
 import { useDebounceUtils } from "./utils/debounceUtils";
 
+const pdfFileStore = usePdfFileStore();
+const pdfPageStore = usePdfPageStore();
+const pdfRenderStore = usePdfRenderStore();
+
 const store = usePdfStore();
+
+
+const { file, fileName, isFile, } = storeToRefs(pdfFileStore);
+const { page, startPage, lastPage, selectedPage, filteredPages, } = storeToRefs(pdfPageStore);
+const { renderedPages, isLoadingMore, loadedCount, lastChunkEnd, renderCount, text_layer, } = storeToRefs(pdfRenderStore);
 
 const {
   // State
-  file, fileName, isFile, isUpload, page, startPage, lastPage, selectedPage, selectionType, scale, displayScale, renderedPages, isLoadingMore, loadedCount, lastChunkEnd, renderCount, text_layer, open, isConvert,
-  // Computed
-  filteredPages,
+  selectionType, scale, displayScale, open, isConvert, isUpload
   // Actions
 } = storeToRefs(store);
 
@@ -134,11 +142,23 @@ const {
 
 const { numInput } = useInputUtils();
 const { debounceFn } = useDebounceUtils();
-// const { setScale,
-//   incrementScale,
-//   decrementScale,
-//   resetScale, } = usePdfScale(debouncedStartChunkRendering, chunkTimeoutId);
 
+
+onMounted(() => {
+  const handleBeforeUnload = (e) => {
+    if (isFile.value) {
+      e.preventDefault();
+      return e.returnValue;
+    }
+  };
+
+  window.addEventListener('beforeunload', handleBeforeUnload);
+
+  // 컴포넌트 언마운트 시 이벤트 리스너 제거
+  onBeforeUnmount(() => {
+    window.removeEventListener('beforeunload', handleBeforeUnload);
+  });
+});
 
 
 const CHUNK_SIZE = 5;
@@ -231,34 +251,34 @@ function changeFile(event) {
 
 
 // 전역 observer 변수
-let globalObserver = null;
+// let globalObserver = null;
 
-const removeBrTags = () => {
-  // 기존 observer가 있으면 정리
-  if (globalObserver) {
-    globalObserver.disconnect();
-    globalObserver = null;
-  }
+// const removeBrTags = () => {
+//   // 기존 observer가 있으면 정리
+//   if (globalObserver) {
+//     globalObserver.disconnect();
+//     globalObserver = null;
+//   }
 
-  // 새로운 observer 생성
-  globalObserver = new MutationObserver((mutationsList) => {
-    mutationsList.forEach((mutation) => {
-      if (mutation.addedNodes) {
-        mutation.addedNodes.forEach((node) => {
-          if (node.tagName === "BR") {
-            node.remove();
-          }
-        });
-      }
-    });
-  });
+//   // 새로운 observer 생성
+//   globalObserver = new MutationObserver((mutationsList) => {
+//     mutationsList.forEach((mutation) => {
+//       if (mutation.addedNodes) {
+//         mutation.addedNodes.forEach((node) => {
+//           if (node.tagName === "BR") {
+//             node.remove();
+//           }
+//         });
+//       }
+//     });
+//   });
 
-  // PDF wrap 요소들에 observer 연결
-  const pdfWrapElements = document.querySelectorAll(".pdf_wrap");
-  pdfWrapElements.forEach((pdfWrapElement) => {
-    globalObserver.observe(pdfWrapElement, { childList: true, subtree: true });
-  });
-};
+//   // PDF wrap 요소들에 observer 연결
+//   const pdfWrapElements = document.querySelectorAll(".pdf_wrap");
+//   pdfWrapElements.forEach((pdfWrapElement) => {
+//     globalObserver.observe(pdfWrapElement, { childList: true, subtree: true });
+//   });
+// };
 
 
 /**
@@ -296,7 +316,7 @@ let wheelTimer; // 휠 이벤트 종료를 감지하기 위한 타이머 변수
 
 
 function onLoaded(v) {
-  removeBrTags();
+  // removeBrTags();
   text_layer.value = false;
 
   clearTimeout(wheelTimer);
@@ -518,11 +538,12 @@ function startChunkRendering() {
 const debouncedStartChunkRendering = debounceFn(startChunkRendering, 300);
 
 // 통합된 watch
-watch([isFile, selectionType, filteredPages], () => {
-  if (isFile.value && selectionType.value === 'range' && filteredPages.value.length > 0) {
+watch([isFile, selectionType, filteredPages, pages], () => {
+  if (isFile.value && selectionType.value === 'range' && filteredPages.value.length > 0 && pages.value > 0) {
     debouncedStartChunkRendering();
   }
 });
+
 
 // 다음 청크 로드 (5페이지씩)
 function loadNextChunk() {
@@ -574,7 +595,7 @@ function loadNextChunk() {
 // 페이지 렌더링 완료 시
 function onPageLoaded(v,) {
 
-  removeBrTags();
+  // removeBrTags();
 
   loadedCount.value++;
   pageWidth = v.width;
