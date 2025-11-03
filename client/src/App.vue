@@ -458,13 +458,38 @@ function resetLastPage(e) {
 
 
 
-// 청크 렌더링 초기화 함수
+// 청크 렌더링 초기화 함수 (최적화: 이미 렌더링된 페이지 유지)
 function startChunkRendering() {
+  // 기존 타임아웃 취소
+  if (chunkTimeoutId) {
+    clearTimeout(chunkTimeoutId);
+    chunkTimeoutId = null;
+  }
 
-  // 초기화
-  renderedPages.value = [];
-  loadedCount.value = 0;
-  lastChunkEnd.value = 0;
+  // 현재 필터링된 페이지 범위
+  const currentPages = filteredPages.value;
+
+  // 이미 렌더링된 페이지 중 범위에 포함된 것만 유지
+  const existingPages = renderedPages.value.filter(page => currentPages.includes(page));
+
+  // 범위에서 벗어난 페이지는 제거 (DOM에서도 제거되어야 하지만 Vue가 자동 처리)
+  renderedPages.value = existingPages;
+
+  // 새로 추가해야 할 페이지 계산
+  const newPages = currentPages.filter(page => !renderedPages.value.includes(page));
+
+  if (newPages.length === 0) {
+    // 추가할 페이지가 없으면 완료
+    isLoadingMore.value = false;
+    // loadedCount는 실제 렌더링된 페이지 수로 유지 (기존 값 유지)
+    loadedCount.value = renderedPages.value.length;
+    return;
+  }
+
+  // 새 페이지가 있으면 렌더링 시작
+  // loadedCount는 기존 렌더링된 페이지 수로 시작 (새 페이지만 카운트됨)
+  loadedCount.value = renderedPages.value.length;
+  lastChunkEnd.value = renderedPages.value.length;
   isLoadingMore.value = true;
 
   // 첫 번째 청크 로드
@@ -491,34 +516,41 @@ function loadNextChunk() {
     chunkTimeoutId = null;
   }
 
-  if (renderedPages.value.length >= filteredPages.value.length) {
+  // 현재 필터링된 페이지 범위
+  const currentPages = filteredPages.value;
+
+  // 아직 렌더링되지 않은 페이지 찾기
+  const remainingPages = currentPages.filter(page => !renderedPages.value.includes(page));
+
+  if (remainingPages.length === 0) {
     // 모든 페이지 렌더링 완료
     isLoadingMore.value = false;
     return;
   }
 
-  const start = renderedPages.value.length;
-  const end = Math.min(start + CHUNK_SIZE, filteredPages.value.length);
-
-  // 5페이지 동시 추가
-  for (let i = start; i < end; i++) {
-    renderedPages.value.push(filteredPages.value[i]);
+  // 남은 페이지 중 CHUNK_SIZE만큼 추가
+  const chunkSize = Math.min(CHUNK_SIZE, remainingPages.length);
+  for (let i = 0; i < chunkSize; i++) {
+    renderedPages.value.push(remainingPages[i]);
   }
 
-  // 이 청크의 끝 위치 저장
-  lastChunkEnd.value = end;
+  // 정렬 유지 (페이지 순서대로)
+  renderedPages.value.sort((a, b) => a - b);
+
+  // 이 청크의 끝 위치 저장 (전체 filteredPages 기준)
+  const lastAddedPage = remainingPages[chunkSize - 1];
+  const lastAddedIndex = currentPages.indexOf(lastAddedPage);
+  lastChunkEnd.value = lastAddedIndex + 1;
 
 
   // 폴백: 3초 내에 완료되지 않으면 강제로 다음 청크 (이벤트 누락 대비)
   chunkTimeoutId = setTimeout(() => {
-    console.warn(`⚠️ 타임아웃! 3초 내 완료 안 됨. 강제로 다음 청크 로드 (loadedCount: ${loadedCount.value}/${lastChunkEnd.value})`);
-    if (lastChunkEnd.value < filteredPages.value.length) {
+    console.warn(`⚠️ 타임아웃! 3초 내 완료 안 됨. 강제로 다음 청크 로드 (loadedCount: ${loadedCount.value}/${filteredPages.value.length})`);
+    if (loadedCount.value < filteredPages.value.length) {
       loadNextChunk(); // 다음 청크 로드 (진행 바 유지)
     } else {
       // 모든 청크 완료되었을 때만 진행 바 숨김
-      if (loadedCount.value >= filteredPages.value.length || renderedPages.value.length >= filteredPages.value.length) {
-        isLoadingMore.value = false;
-      }
+      isLoadingMore.value = false;
     }
   }, 3000);
 }
@@ -555,7 +587,7 @@ function onPageLoaded(v,) {
     }
 
     // 다음 청크 로드 (진행 바는 유지)
-    if (lastChunkEnd.value < filteredPages.value.length) {
+    if (loadedCount.value < filteredPages.value.length) {
       loadNextChunk();
     }
   }
