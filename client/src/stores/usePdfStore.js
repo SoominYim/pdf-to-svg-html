@@ -14,6 +14,10 @@ export const usePdfStore = defineStore("pdf", () => {
   const isConvert = ref(false);
   const isUpload = ref(false);
 
+  const setSelectionType = type => {
+    selectionType.value = type;
+  };
+
   return {
     // State
     selectionType,
@@ -23,5 +27,6 @@ export const usePdfStore = defineStore("pdf", () => {
     isConvert,
     isUpload,
     // Actions
+    setSelectionType,
   };
 });

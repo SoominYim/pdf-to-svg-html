@@ -2,12 +2,7 @@
   <PdfLoading />
   <div class="pdfContainer" style="text-align: center">
     <div class="header">
-      <div v-if="!isFile">
-        <input type="radio" name="selectionType" id="choice" v-model="selectionType" value="choice" />
-        <label for="choice">개별 선택</label>
-        <input type="radio" name="selectionType" id="range" v-model="selectionType" value="range" />
-        <label for="range">범위 선택</label>
-      </div>
+      <HeaderSelectType v-if="!isFile" />
       <ul class="tool-bar" style="display: flex; justify-content: center; list-style-type: none; gap: 10px">
         <li v-if="isFile">
           <p>{{ fileName }}.pdf</p>
@@ -101,6 +96,10 @@
 </template>
 
 <script setup>
+// 컴포넌트 테스트
+import HeaderSelectType from "./components/header/HeaderSelectType.vue";
+
+
 import { watch, onMounted, onBeforeUnmount } from "vue";
 import { VuePDF, usePDF } from "@tato30/vue-pdf";
 import JSZip from "jszip";
@@ -144,23 +143,29 @@ const { numInput } = useInputUtils();
 const { debounceFn } = useDebounceUtils();
 
 
+function handleBeforeUnload(event) {
+  if (isFile.value) {
+    const blob = new Blob([], { type: 'application/x-www-form-urlencoded' });
+    navigator.sendBeacon("/deleteFile", blob);
+  }
+
+  event.preventDefault();
+  event.returnValue = ""; // 브라우저 기본 confirm 띄우기
+}
+
 onMounted(() => {
-  const handleBeforeUnload = (e) => {
-    if (isFile.value) {
-      e.preventDefault();
-      return e.returnValue;
-    }
-  };
-
-  window.addEventListener('beforeunload', handleBeforeUnload);
-
-  // 컴포넌트 언마운트 시 이벤트 리스너 제거
-  onBeforeUnmount(() => {
-    window.removeEventListener('beforeunload', handleBeforeUnload);
-  });
+  // 페이지 이탈 시 파일 삭제 (beforeunload는 비동기 요청이 안전하지 않으므로 navigator.sendBeacon 사용)
 });
-
-
+onBeforeUnmount(() => {
+  // 파일이 업로드되어 있으면 삭제
+  if (isFile.value) {
+    // 동기적으로 삭제 (언마운트 시 안전)
+    fetch("/deleteFile", {
+      method: "GET"
+    }).catch(err => console.error("File delete error:", err));
+  }
+  window.removeEventListener('beforeunload', handleBeforeUnload);
+});
 const CHUNK_SIZE = 5;
 
 const { pdf, pages } = usePDF(file, {
