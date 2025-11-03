@@ -154,7 +154,8 @@ let chunkTimeoutId = null;
 
 // 스케일 디바운싱
 let scaleDebounceTimer = null;
-
+// 스케일 변경 감지 플래그
+let isScaleChanging = false;
 
 const setScale = (newScale) => {
   const newValue = Math.max(0.5, Math.min(2, newScale));
@@ -171,7 +172,11 @@ const setScale = (newScale) => {
     }
 
     if (selectionType.value === 'range' && renderedPages.value.length > 0) {
+      // 스케일 변경 시 전체 재렌더링 필요
+      isScaleChanging = true;
       loadedCount.value = 0;
+      renderedPages.value = []; // 모든 페이지 초기화
+      lastChunkEnd.value = 0;
       isLoadingMore.value = true;
       debouncedStartChunkRendering(); // 디바운스된 함수 사용
     }
@@ -464,6 +469,17 @@ function startChunkRendering() {
   if (chunkTimeoutId) {
     clearTimeout(chunkTimeoutId);
     chunkTimeoutId = null;
+  }
+
+  // 스케일 변경 시에는 전체 재렌더링
+  if (isScaleChanging) {
+    isScaleChanging = false; // 플래그 리셋
+    loadedCount.value = 0;
+    lastChunkEnd.value = 0;
+    renderedPages.value = [];
+    isLoadingMore.value = true;
+    loadNextChunk();
+    return;
   }
 
   // 현재 필터링된 페이지 범위
