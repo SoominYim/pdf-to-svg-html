@@ -14,12 +14,26 @@ pdf-to-svg-html/
 │   ├── convertFile.js
 │   ├── getSVGFile.js
 │   └── uploadFile.js
-├── dist/                  # 빌드된 프론트엔드 (자동 생성)
 ├── input/                 # 업로드된 PDF 파일
 ├── output/                # 변환된 SVG 파일
 ├── pdf-svg/               # PDF2SVG 실행 파일
 ├── app.js                 # Express 서버
 └── package.json           # 루트 package.json
+```
+
+## 📥 클론 및 업데이트
+
+GitHub 저장소를 클론
+
+```bash
+git clone https://github.com/SoominYim/pdf-to-svg-html.git
+cd pdf-to-svg-html
+```
+
+업데이트
+
+```
+git pull origin main
 ```
 
 ## 🚀 시작하기
@@ -30,10 +44,6 @@ pdf-to-svg-html/
 # 백엔드 의존성
 npm install
 
-# 프론트엔드 의존성
-cd client
-npm install
-cd ..
 ```
 
 ### 2. 개발 모드 실행
@@ -121,7 +131,6 @@ npm start
 ## ⚠️ 주의사항
 
 - `input/` 폴더와 `output/` 폴더는 자동으로 관리됩니다.
-- `dist/` 폴더는 프론트엔드 빌드 결과물이 저장되는 곳입니다.
 - 개발 중에는 `npm run dev:all`을 사용하는 것을 권장합니다.
 - PDF 변환을 위해 `pdf-svg/` 폴더의 `pdf2svg.exe` 및 관련 DLL이 필요합니다.
 
